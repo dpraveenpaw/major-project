@@ -4,9 +4,33 @@ pipeline {
     environment {
         DOCKER_COMPOSE_DIR = "${WORKSPACE}"
         TEMPLATE_URL = "https://www.free-css.com/assets/files/free-css-templates/download/page294/troweld.zip"
+        COMPOSE_VERSION = "v2.24.1"
     }
     
     stages {
+        stage('Install Dependencies') {
+            steps {
+                script {
+                    sh '''
+                        # Create local bin directory in workspace
+                        mkdir -p ${WORKSPACE}/bin
+                        
+                        # Download Docker Compose to workspace
+                        curl -L "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o ${WORKSPACE}/bin/docker-compose
+                        
+                        # Make it executable
+                        chmod +x ${WORKSPACE}/bin/docker-compose
+                        
+                        # Add to PATH
+                        export PATH="${WORKSPACE}/bin:$PATH"
+                        
+                        # Verify installation
+                        ${WORKSPACE}/bin/docker-compose --version
+                    '''
+                }
+            }
+        }
+        
         stage('Checkout') {
             steps {
                 checkout scm
@@ -16,7 +40,6 @@ pipeline {
         stage('Download and Extract Template') {
             steps {
                 script {
-                    // Create directory and download template
                     sh '''
                         mkdir -p troweld-html
                         cd troweld-html
@@ -24,20 +47,12 @@ pipeline {
                         # Download template
                         curl -L "${TEMPLATE_URL}" -o troweld.zip
                         
-                        # Install unzip if not present
-                        if ! command -v unzip &> /dev/null; then
-                            apt-get update && apt-get install -y unzip
-                        fi
-                        
                         # Extract template
                         unzip -o troweld.zip
                         
-                        # Move files from template directory to troweld-html
+                        # Move files from template directory
                         mv troweld-html/* .
                         rm -rf troweld-html troweld.zip
-                        
-                        # List files
-                        ls -la
                     '''
                 }
             }
@@ -46,8 +61,7 @@ pipeline {
         stage('Create Nginx Dockerfile') {
             steps {
                 script {
-                    sh '''
-                        cat > Dockerfile << 'EOF'
+                    writeFile file: 'Dockerfile', text: '''
 FROM nginx:alpine
 
 # Remove default nginx static assets
@@ -56,15 +70,10 @@ RUN rm -rf /usr/share/nginx/html/*
 # Copy all the static files from troweld-html directory to nginx directory
 COPY troweld-html/ /usr/share/nginx/html/
 
-# Set proper permissions
-RUN chown -R nginx:nginx /usr/share/nginx/html && \
-    chmod -R 755 /usr/share/nginx/html
-
 EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]
-EOF
-                    '''
+'''
                 }
             }
         }
@@ -72,8 +81,7 @@ EOF
         stage('Create Docker Compose') {
             steps {
                 script {
-                    sh '''
-                        cat > docker-compose.yml << 'EOF'
+                    writeFile file: 'docker-compose.yml', text: '''
 version: '3.8'
 
 services:
@@ -85,33 +93,11 @@ services:
       - "80:80"
     networks:
       - app-network
-    depends_on:
-      - jenkins
-
-  jenkins:
-    image: jenkins/jenkins:lts
-    user: root
-    privileged: true
-    ports:
-      - "8080:8080"
-      - "50000:50000"
-    volumes:
-      - jenkins_home:/var/jenkins_home
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /usr/bin/docker:/usr/bin/docker
-    environment:
-      - DOCKER_HOST=unix:///var/run/docker.sock
-    networks:
-      - app-network
 
 networks:
   app-network:
     driver: bridge
-
-volumes:
-  jenkins_home:
-EOF
-                    '''
+'''
                 }
             }
         }
@@ -119,11 +105,16 @@ EOF
         stage('Build and Deploy') {
             steps {
                 script {
-                    // Stop existing containers
-                    sh 'docker-compose down || true'
-                    
-                    // Build and start containers
-                    sh 'docker-compose up -d --build'
+                    sh '''
+                        # Add docker-compose to PATH
+                        export PATH="${WORKSPACE}/bin:$PATH"
+                        
+                        # Stop existing containers
+                        ${WORKSPACE}/bin/docker-compose down || true
+                        
+                        # Build and start containers
+                        ${WORKSPACE}/bin/docker-compose up -d --build
+                    '''
                 }
             }
         }
@@ -142,14 +133,6 @@ EOF
                             echo "Nginx health check failed"
                             exit 1
                         fi
-                        
-                        # Check if Jenkins is responding
-                        if curl -s -f http://localhost:8080 > /dev/null; then
-                            echo "Jenkins is up and running"
-                        else
-                            echo "Jenkins health check failed"
-                            exit 1
-                        fi
                     '''
                 }
             }
@@ -162,7 +145,10 @@ EOF
         }
         failure {
             script {
-                sh 'docker-compose down || true'
+                sh '''
+                    export PATH="${WORKSPACE}/bin:$PATH"
+                    ${WORKSPACE}/bin/docker-compose down || true
+                '''
                 echo 'Deployment failed!'
             }
         }
