@@ -4,7 +4,6 @@ pipeline {
     environment {
         DOCKER_IMAGE = 'vite-react-app'
         DOCKER_TAG = 'latest'
-        PATH = "${tool 'NodeJS14'}/bin:${env.PATH}"
     }
     
     stages {
@@ -16,11 +15,48 @@ pipeline {
         
         stage('Install Dependencies') {
             steps {
-                sh 'npm install'
+                // Run npm commands within the NodeJS environment
+                nodejs('NodeJS14') {
+                    sh 'npm install'
+                }
             }
         }
         
-        // ...other stages remain the same...
+        stage('Run Tests') {
+            steps {
+                nodejs('NodeJS14') {
+                    sh 'npm run lint'
+                }
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                nodejs('NodeJS14') {
+                    sh 'npm run build'
+                }
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    docker.build("${DOCKER_IMAGE}:${DOCKER_TAG}")
+                }
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                script {
+                    sh """
+                        docker stop ${DOCKER_IMAGE} || true
+                        docker rm ${DOCKER_IMAGE} || true
+                        docker run -d --name ${DOCKER_IMAGE} -p 8080:80 ${DOCKER_IMAGE}:${DOCKER_TAG}
+                    """
+                }
+            }
+        }
     }
     
     post {
