@@ -15,19 +15,26 @@ pipeline {
         
         stage('Install Dependencies') {
             steps {
-                sh 'npm install'
+                // Run npm commands within the NodeJS environment
+                nodejs('NodeJS14') {
+                    sh 'npm install'
+                }
             }
         }
         
         stage('Run Tests') {
             steps {
-                sh 'npm run lint'
+                nodejs('NodeJS14') {
+                    sh 'npm run lint'
+                }
             }
         }
         
         stage('Build') {
             steps {
-                sh 'npm run build'
+                nodejs('NodeJS14') {
+                    sh 'npm run build'
+                }
             }
         }
         
@@ -42,7 +49,6 @@ pipeline {
         stage('Deploy') {
             steps {
                 script {
-                    // Replace with your actual deployment logic
                     sh """
                         docker stop ${DOCKER_IMAGE} || true
                         docker rm ${DOCKER_IMAGE} || true
