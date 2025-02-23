@@ -1,61 +1,40 @@
 pipeline {
     agent any
     
-    environment {
-        DOCKER_IMAGE = 'vite-react-app'
-        DOCKER_TAG = 'latest'
-    }
-    
     stages {
         stage('Checkout') {
             steps {
+                // Checkout code from version control
                 checkout scm
-            }
-        }
-        
-        stage('Install Dependencies') {
-            steps {
-                sh 'npm install'
-            }
-        }
-        
-        stage('Run Tests') {
-            steps {
-                sh 'npm run lint'
-            }
-        }
-        
-        stage('Build') {
-            steps {
-                sh 'npm run build'
             }
         }
         
         stage('Build Docker Image') {
             steps {
                 script {
-                    docker.build("${DOCKER_IMAGE}:${DOCKER_TAG}")
+                    // Build the Docker image
+                    sh 'docker build -t my-nginx-app .'
                 }
             }
         }
         
-        stage('Deploy') {
+        stage('Run Container') {
             steps {
                 script {
-                    // Replace with your actual deployment logic
-                    sh """
-                        docker stop ${DOCKER_IMAGE} || true
-                        docker rm ${DOCKER_IMAGE} || true
-                        docker run -d --name ${DOCKER_IMAGE} -p 8080:80 ${DOCKER_IMAGE}:${DOCKER_TAG}
-                    """
+                    // Stop and remove existing container if it exists
+                    sh 'docker rm -f my-nginx-container || true'
+                    
+                    // Run the new container
+                    sh 'docker run -d -p 80:80 --name my-nginx-container my-nginx-app'
                 }
             }
         }
-    }
-    
-    post {
-        always {
-            cleanWs()
+        
+        stage('Verify') {
+            steps {
+                // Simple verification that container is running
+                sh 'docker ps | grep my-nginx-container'
+            }
         }
     }
 }
