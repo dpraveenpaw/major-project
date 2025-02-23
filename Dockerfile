@@ -1,10 +1,11 @@
-FROM nginx:latest
+FROM nginx:alpine
 
-# Copy custom nginx configuration if needed
-# COPY nginx.conf /etc/nginx/nginx.conf
+# Remove default nginx static assets
+RUN rm -rf /usr/share/nginx/html/*
 
-# Copy website files
-COPY ./src /usr/share/nginx/html
+# Copy all the static files from troweld-html directory to nginx directory
+COPY /home/ost-magazine/ /usr/share/nginx/html/
 
-# Expose port 80
 EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
