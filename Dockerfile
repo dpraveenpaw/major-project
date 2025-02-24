@@ -4,7 +4,7 @@ FROM nginx:alpine
 RUN rm -rf /usr/share/nginx/html/*
 
 # Copy static files from a remote URL
-copy /ost-magazine . /usr/share/nginx/html/
+copy /ost-magazine/* . /usr/share/nginx/html/
 
 EXPOSE 80
 
