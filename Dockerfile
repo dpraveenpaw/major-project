@@ -4,7 +4,7 @@ FROM nginx:alpine
 RUN rm -rf /usr/share/nginx/html/*
 
 # Copy static files from a remote URL
-ADD https://www.free-css.com/assets/files/free-css-templates/download/page2/ost-magazine.zip /usr/share/nginx/html/
+ADD ost-magazine.zip .. /usr/share/nginx/html/
 
 EXPOSE 80
 
